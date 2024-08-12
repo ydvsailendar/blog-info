@@ -1,0 +1,86 @@
+services:
+  proxy:
+    image: nginxproxy/nginx-proxy:1.6
+    container_name: proxy
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  letsencrypt:
+    image: nginxproxy/acme-companion:2.4
+    container_name: letsencrypt
+    restart: always
+    volumes_from:
+      - proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DEFAULT_EMAIL: ${ADMIN_EMAIL}
+    depends_on:
+      - proxy
+
+  ghost:
+    image: ghost:5
+    restart: always
+    container_name: ghost
+    environment:
+      VIRTUAL_HOST: ${DOMAIN_NAME}
+      LETSENCRYPT_HOST: ${DOMAIN_NAME}
+      LETSENCRYPT_EMAIL: ${ADMIN_EMAIL}
+      VIRTUAL_PORT: 2368
+      NODE_ENV: production
+      url: https://${DOMAIN_NAME}
+      database__client: mysql
+      database__connection__host: db
+      database__connection__user: root
+      database__connection__password: ${MYSQL_ROOT_PASS}
+      database__connection__database: ydvsailendar
+      mail__transport: SMTP
+      mail__options__service: Mailgun
+      mail__options__port: 465
+      mail__options__host: smtp.mailgun.org
+      mail__options__secure: true
+      mail__options__auth__user: ${MAILGUN_USER}
+      mail__options__auth__pass: ${MAILGUN_PASS}
+    volumes:
+      - ghost:/var/lib/ghost/content
+    depends_on:
+      - db
+
+  db:
+    image: mysql:9.0
+    restart: always
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS}
+    volumes:
+      - db:/var/lib/mysql
+
+  backup:
+    image: databack/mysql-backup:1.0.0-rc5
+    restart: always
+    container_name: backup
+    environment:
+      - DB_DUMP_TARGET=${DB_DUMP_TARGET}
+      - DB_USER=root
+      - DB_PASS=${MYSQL_ROOT_PASS}
+      - DB_DUMP_FREQ=1440
+      - DB_SERVER=db
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+    depends_on:
+      - db
+    command: dump
+
+volumes:
+  acme:
+  certs:
+  html:
+  db:
+  ghost:
