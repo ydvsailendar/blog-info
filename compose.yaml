@@ -43,6 +43,7 @@ services:
       database__connection__password: ${MYSQL_ROOT_PASS}
       database__connection__database: ydvsailendar
       mail__transport: SMTP
+      mail__from: ${ADMIN_EMAIL}
       mail__options__service: SES
       mail__options__port: 465
       mail__options__host: email-smtp.eu-west-2.amazonaws.com
